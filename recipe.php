@@ -23,6 +23,9 @@
  */
 function parse_tweet($content) {
 
+	// Resolve hyperlinks to originals (for image processing etc)
+	// https://dev.twitter.com/docs/api/1/get/statuses/show/%3Aid
+
 	// Autolink hyperlinks
 	$hyperlinked_content = preg_replace("/((f|ht)tps?:\/\/([^\s]+))/", "<a href=\"$1\">$3</a>", $content);
 	
