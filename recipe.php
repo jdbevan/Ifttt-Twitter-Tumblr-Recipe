@@ -137,6 +137,12 @@ if ($rss !== false) {
 			$tumblr_params['tags'] .= ", " . implode(", ", $parsed_response['hashtags']);
 			if (preg_match("/^<a href=\"[^\s]+\">[^\s]+<\/a>$/", $parsed_response['html'])) {
 				//echo "LINK format";
+				
+				/*
+				 * Links can have a title... surely then tweets with text and then a link at
+				 * the end (before hashtags) should be titled links, not text posts... text would have multiple
+				 * hyperlinks or mentions or hashtags
+				 */
 				$tumblr_params['type'] = "link";
 				$tumblr_params['link'] = '';
 			} else if (!$parsed_response['has_links'] and !$parsed_response['has_mentions']) {
