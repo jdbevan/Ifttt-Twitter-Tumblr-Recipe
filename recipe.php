@@ -30,24 +30,47 @@ function parse_tweet($content, $tweet_id = "") {
 	if ($tweet_id !== "" and preg_match("/^[0-9]+$/", $tweet_id)) {
 		$tweet_info = simplexml_load_file("https://api.twitter.com/1/statuses/show.xml?id=$tweet_id&include_entities=true");
 		
-		foreach ($tweet_info->entities->urls as $url_data) {
+		foreach ($tweet_info->entities->urls->url as $url_data) {
 		
 			$short_url = (string)$url_data->url;
-			$full_url = (string)$url_data->expanded_url;
+			$long_url = (string)$url_data->expanded_url;
 			
-			if (preg_match("/^http:\/\/(bit\.ly|j\.mp)/", $full_url) and function_exists("bitly_v3_expand")) {
-				$bitly_response = bitly_v3_expand($full_url);
-				if (isset($bitly_response['long_url'])) {
-					$full_url = $bitly_response['long_url']; 
+			if (preg_match("/^http:\/\/(bit\.ly|j\.mp)/", $long_url) and function_exists("bitly_v3_expand")) {
+				$bitly_response = bitly_v3_expand($long_url);
+				if (isset($bitly_response[0]) and isset($bitly_response[0]['long_url'])) {
+					$long_url = $bitly_response[0]['long_url']; 
 				}
 			}
 		
-			$full_urls[] = array($short_url, $long_url);
+			//echo $short_url, " => ", $long_url, "\n";
+			$full_urls[$short_url] = $long_url;
 		}
 	}
 	
 	// Autolink hyperlinks
 	$hyperlinked_content = preg_replace("/((f|ht)tps?:\/\/([^\s]+))/", "<a href=\"$1\">$3</a>", $content);
+
+	// Swap in long URLs if there are any
+	if (preg_match("/((f|ht)tps?:\/\/([^\"]+))/", $hyperlinked_content, $url_matches)) {
+		foreach($url_matches as $url) {
+			if (isset($full_urls[$url])) {
+				// Replace the href contents
+				$hyperlinked_content = str_replace($url, $full_urls[$url], $hyperlinked_content);
+				
+				// Replace the a tag contents
+				$hyperlinked_content = str_replace(
+											str_replace(
+												array("https://", "http://", "ftps://", "ftp://"), "", $url
+											),
+											str_replace(
+												array("https://", "http://", "ftps://", "ftp://"), "", $full_urls[$url]
+											),
+											$hyperlinked_content
+										);
+			}
+		}
+	}
+
 	
 	// Used for removing hashtags
 	$contains_hyperlink = ($content !== $hyperlinked_content);
@@ -156,6 +179,7 @@ if ($rss !== false) {
 		// Ignore replies and retweets
 		if (!preg_match("/^(RT|\.?@)/", $content) and gmdate("Y-m-d H:i:s", strtotime($pubDate)) < gmdate("Y-m-d H:i:s", strtotime("-15 minutes"))) {
 			
+			//echo $tweet_id, "\n";
 			$parsed_response = parse_tweet($content, $tweet_id);
 			if (count($parsed_response['hashtags']) > 0) echo "TAGS: ", implode(", ", $parsed_response['hashtags']), "\n";
 			echo "{$parsed_response['html']}\n";
@@ -183,6 +207,7 @@ if ($rss !== false) {
 			
 			echo "------\n";
 		}
+		sleep(10);
 	}	
 }
 
