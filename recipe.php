@@ -21,11 +21,31 @@
  *		If just text, then quote format post
  *		If a hyperlink resolves to picture on Twitter, embed/link to that image?
  */
-function parse_tweet($content) {
+function parse_tweet($content, $tweet_id = "") {
 
+	$full_urls = array();
+	
 	// Resolve hyperlinks to originals (for image processing etc)
 	// https://dev.twitter.com/docs/api/1/get/statuses/show/%3Aid
-
+	if ($tweet_id !== "" and preg_match("/^[0-9]+$/", $tweet_id)) {
+		$tweet_info = simplexml_load_file("https://api.twitter.com/1/statuses/show.xml?id=$tweet_id&include_entities=true");
+		
+		foreach ($tweet_info->entities->urls as $url_data) {
+		
+			$short_url = (string)$url_data->url;
+			$full_url = (string)$url_data->expanded_url;
+			
+			if (preg_match("/^http:\/\/(bit\.ly|j\.mp)/", $full_url) and function_exists("bitly_v3_expand")) {
+				$bitly_response = bitly_v3_expand($full_url);
+				if (isset($bitly_response['long_url'])) {
+					$full_url = $bitly_response['long_url']; 
+				}
+			}
+		
+			$full_urls[] = array($short_url, $long_url);
+		}
+	}
+	
 	// Autolink hyperlinks
 	$hyperlinked_content = preg_replace("/((f|ht)tps?:\/\/([^\s]+))/", "<a href=\"$1\">$3</a>", $content);
 	
@@ -111,9 +131,10 @@ exit;
 $twitter_username = "jdbevan";
 $twitter_rss_api = "http://api.twitter.com/1/statuses/user_timeline.rss?screen_name=$twitter_username";
 
-$tumblr_hostname = "blog.jdbevan.com";
+include 'bitly.php';
+
 include 'oauth_config.php';
-$tumblr_method = "http://api.tumblr.com/v2/blog/$tumblr_hostname/post";
+include 'tumblr-api/autoloader.php';
 $tumblr_params = array("type" => "text",
 						"tags" => "Twitter");
 
@@ -127,14 +148,16 @@ if ($rss !== false) {
 		$content = (string)$tweet->title;
 		$pubDate = (string)$tweet->pubDate;
 		$link = (string)$tweet->link;
+		$last_slash = strrpos($link, "/");
+		$tweet_id = substr($link, $last_slash+1);
 		
 		$content = trim(str_replace("$twitter_username: ", "", $content));
 		
 		// Ignore replies and retweets
 		if (!preg_match("/^(RT|\.?@)/", $content) and gmdate("Y-m-d H:i:s", strtotime($pubDate)) < gmdate("Y-m-d H:i:s", strtotime("-15 minutes"))) {
 			
-			$parsed_response = parse_tweet($content);
-			echo implode(", ", $parsed_response['hashtags']), "\n";
+			$parsed_response = parse_tweet($content, $tweet_id);
+			if (count($parsed_response['hashtags']) > 0) echo "TAGS: ", implode(", ", $parsed_response['hashtags']), "\n";
 			echo "{$parsed_response['html']}\n";
 			
 			$tumblr_params['tags'] .= ", " . implode(", ", $parsed_response['hashtags']);
@@ -158,7 +181,7 @@ if ($rss !== false) {
 				$tumblr_params['body'] = $parsed_response['html'];
 			}
 			
-			echo "\n\n";
+			echo "------\n";
 		}
 	}	
 }
