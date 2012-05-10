@@ -158,6 +158,8 @@ include 'bitly.php';
 
 include 'oauth_config.php';
 include 'tumblr-api/autoloader.php';
+Tumblr\API::configure(BASE_HOSTNAME, API_KEY, API_SECRET);
+
 $tumblr_params = array("type" => "text",
 						"tags" => "Twitter");
 
@@ -185,7 +187,8 @@ if ($rss !== false) {
 			echo "{$parsed_response['html']}\n";
 			
 			$tumblr_params['tags'] .= ", " . implode(", ", $parsed_response['hashtags']);
-			if (preg_match("/^<a href=\"[^\s]+\">[^\s]+<\/a>$/", $parsed_response['html'])) {
+
+			if (preg_match("/^<a href=\"[^\s]+\">([^\s]+)<\/a>$/", $parsed_response['html'], $link_match)) {
 				//echo "LINK format";
 				
 				/*
@@ -194,7 +197,8 @@ if ($rss !== false) {
 				 * hyperlinks or mentions or hashtags
 				 */
 				$tumblr_params['type'] = "link";
-				$tumblr_params['link'] = '';
+				$tumblr_params['url'] = $link_match[1];
+				//$tumblr_params['title'] = ;
 			} else if (!$parsed_response['has_links'] and !$parsed_response['has_mentions']) {
 				//echo "QUOTE format";
 				$tumblr_params['type'] = "quote";
@@ -204,6 +208,8 @@ if ($rss !== false) {
 				$tumblr_params['type'] = "text";
 				$tumblr_params['body'] = $parsed_response['html'];
 			}
+			
+			var_export($tumblr_params);			
 			
 			echo "------\n";
 		}
