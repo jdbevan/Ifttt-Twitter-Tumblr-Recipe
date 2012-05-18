@@ -67,7 +67,7 @@ abstract class Authentication extends \Singleton
 		$ret = new \stdClass();
 		$ret->token = $token;
 		$ret->token_secret = $token_secret;
-		
+				
 		if(is_null($token) || is_null($token_secret)) {
 			// Invocation path #1
 			$rt_info = $instance->oauth->getRequestToken(self::REQUEST_TOKEN_URL);

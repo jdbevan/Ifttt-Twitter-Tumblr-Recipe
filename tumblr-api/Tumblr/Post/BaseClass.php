@@ -69,7 +69,9 @@ abstract class BaseClass
 		// We do this because we only want the defined properties on the class
 		// otherwise if we were saving a post which we retrieved from the API, the additional fields would cause it to be rejected
 		foreach(get_class_vars(get_class($this)) as $key=>$value) {
-			$vars[$key] = $this->$key;
+			if (property_exists($this, $key) and $this->$key !== null) {
+				$vars[$key] = $this->$key;
+			}
 		}
 		return $vars;
 	}

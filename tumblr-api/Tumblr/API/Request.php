@@ -77,6 +77,10 @@ abstract class Request extends Authentication
 		return FALSE;
 	}
 	
+	public function __construct() {
+		
+	}
+	
 	// This is the method you use to actually make API requests
 	// generally you shouldn't use this directly, but rather one of the helper methods exposed by Tumblr\API
 	public function request($method = null, $path = null, $params = array(), $oauth = true) {

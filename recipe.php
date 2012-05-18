@@ -1,5 +1,6 @@
 <?php
-
+error_reporting(E_ALL);
+ini_set("display_errors", true);
 /*
  * Essentially a cron job script to be run every 15 minutes
  *
@@ -159,17 +160,20 @@ include 'bitly.php';
 include 'oauth_config.php';
 include 'tumblr-api/autoloader.php';
 Tumblr\API::configure(BASE_HOSTNAME, API_KEY, API_SECRET);
+Tumblr\API::authenticate(null, null); //TOKEN, TOKEN_SECRET);
 
-$tumblr_params = array("type" => "text",
-						"tags" => "Twitter");
-
+echo "starting...\n";
 
 $rss = simplexml_load_file($twitter_rss_api);
+echo "got twitter...\n";
 if ($rss !== false) {
 	
 	$tweets = $rss->channel->item;
 	foreach ($tweets as $tweet) {
 		
+		$tumblr_params = array("type" => "text",
+								"tags" => "Twitter");
+
 		$content = (string)$tweet->title;
 		$pubDate = (string)$tweet->pubDate;
 		$link = (string)$tweet->link;
@@ -179,26 +183,41 @@ if ($rss !== false) {
 		$content = trim(str_replace("$twitter_username: ", "", $content));
 		
 		// Ignore replies and retweets
-		if (!preg_match("/^(RT|\.?@)/", $content) and gmdate("Y-m-d H:i:s", strtotime($pubDate)) < gmdate("Y-m-d H:i:s", strtotime("-15 minutes"))) {
+		if (!preg_match("/^(RT|\.?@)/", $content) and gmdate("Y-m-d H:i:s", strtotime($pubDate)) > gmdate("Y-m-d H:i:s", strtotime("-30 minutes"))) {
 			
 			//echo $tweet_id, "\n";
 			$parsed_response = parse_tweet($content, $tweet_id);
 			if (count($parsed_response['hashtags']) > 0) echo "TAGS: ", implode(", ", $parsed_response['hashtags']), "\n";
 			echo "{$parsed_response['html']}\n";
 			
-			$tumblr_params['tags'] .= ", " . implode(", ", $parsed_response['hashtags']);
+			array_push($parsed_response['hashtags'], $tumblr_params['tags']);
+			$tumblr_params['tags'] = implode(", ", $parsed_response['hashtags']);
 
-			if (preg_match("/^<a href=\"[^\s]+\">([^\s]+)<\/a>$/", $parsed_response['html'], $link_match)) {
-				//echo "LINK format";
+			if (preg_match("/^<a href=\"([^\s]+)\">([^\s]+)<\/a>$/", $parsed_response['html'], $link_match)) {
+				$tumblr_params['type'] = "link";
+				$tumblr_params['url'] = $link_match[1];
+				$tumblr_params['title'] = $link_match[2];
 				
+			} else if (preg_match("/^([^<]+)<a href=\"([^\s]+)\">[^\s]+<\/a>$/", $parsed_response['html'], $link_match)) {
 				/*
 				 * Links can have a title... surely then tweets with text and then a link at
 				 * the end (before hashtags) should be titled links, not text posts... text would have multiple
 				 * hyperlinks or mentions or hashtags
 				 */
 				$tumblr_params['type'] = "link";
-				$tumblr_params['url'] = $link_match[1];
-				//$tumblr_params['title'] = ;
+				$tumblr_params['url'] = $link_match[2];
+				$tumblr_params['title'] = trim($link_match[1]);
+				
+				$cls = new Tumblr\Post\Link();
+				$cls->tags = $parsed_response['hashtags'];
+				$cls->date = "now";
+				$cls->title = trim($link_match[1]);
+				$cls->url = $link_match[2];
+				$s = $cls->serialize();
+				var_export($s);
+				Tumblr\API::submitPost($cls);
+				exit;
+
 			} else if (!$parsed_response['has_links'] and !$parsed_response['has_mentions']) {
 				//echo "QUOTE format";
 				$tumblr_params['type'] = "quote";
@@ -211,9 +230,9 @@ if ($rss !== false) {
 			
 			var_export($tumblr_params);			
 			
-			echo "------\n";
+			echo "\n------\n";
+			sleep(10);
 		}
-		sleep(10);
 	}	
 }
 
